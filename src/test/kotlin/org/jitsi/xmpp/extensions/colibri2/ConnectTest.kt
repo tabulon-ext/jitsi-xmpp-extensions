@@ -1,0 +1,562 @@
+/*
+ * Copyright @ 2024 - present 8x8, Inc.
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+package org.jitsi.xmpp.extensions.colibri2
+
+import io.kotest.assertions.throwables.shouldThrow
+import io.kotest.core.spec.style.ShouldSpec
+import io.kotest.matchers.shouldBe
+import io.kotest.matchers.string.shouldContain
+import org.jivesoftware.smack.parsing.SmackParsingException
+import org.jivesoftware.smack.util.PacketParserUtils
+import java.net.URI
+
+class ConnectTest : ShouldSpec() {
+    init {
+        IqProviderUtils.registerProviders()
+        val provider = ConnectProvider()
+        val url = "ws://example.com"
+
+        context("Parsing a valid extension") {
+            context("Without audio/video") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        "<connect id='conn' url='$url' protocol='mediajson' type='recorder'/>"
+                    )
+                )
+                connect.id shouldBe "conn"
+                connect.url shouldBe URI(url)
+                connect.protocol shouldBe Connect.Protocols.MEDIAJSON
+                connect.type shouldBe Connect.Types.RECORDER
+                connect.audio shouldBe false
+                connect.video shouldBe false
+                connect.create shouldBe false
+                connect.expire shouldBe false
+            }
+            context("With create and expire") {
+                provider.parse(
+                    PacketParserUtils.getParserFor(
+                        "<connect id='c1' url='$url' protocol='mediajson' type='translator' create='true'/>"
+                    )
+                ).let {
+                    it.id shouldBe "c1"
+                    it.create shouldBe true
+                    it.expire shouldBe false
+                }
+                provider.parse(
+                    PacketParserUtils.getParserFor(
+                        "<connect id='c2' url='$url' protocol='mediajson' type='translator' expire='true'/>"
+                    )
+                ).let {
+                    it.id shouldBe "c2"
+                    it.create shouldBe false
+                    it.expire shouldBe true
+                }
+            }
+            context("With the agent type") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        "<connect id='agent-a1' url='$url' protocol='mediajson' type='agent'/>"
+                    )
+                )
+                connect.type shouldBe Connect.Types.AGENT
+                connect.toXML().toString() shouldContain "type='agent'"
+            }
+            context("With audio") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        "<connect id='conn' url='$url' protocol='mediajson' type='recorder' audio='true'/>"
+                    )
+                )
+                connect.url shouldBe URI(url)
+                connect.protocol shouldBe Connect.Protocols.MEDIAJSON
+                connect.type shouldBe Connect.Types.RECORDER
+                connect.audio shouldBe true
+                connect.video shouldBe false
+            }
+            context("With video") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        "<connect id='conn' url='$url' protocol='mediajson' type='transcriber' video='true'/>"
+                    )
+                )
+                connect.url shouldBe URI(url)
+                connect.protocol shouldBe Connect.Protocols.MEDIAJSON
+                connect.type shouldBe Connect.Types.TRANSCRIBER
+                connect.audio shouldBe false
+                connect.video shouldBe true
+            }
+        }
+        context("Parsing with missing id") {
+            shouldThrow<SmackParsingException> {
+                provider.parse(
+                    PacketParserUtils.getParserFor("<connect url='$url' protocol='mediajson' type='recorder'/>")
+                )
+            }
+        }
+        context("Parsing with missing url") {
+            shouldThrow<SmackParsingException> {
+                provider.parse(
+                    PacketParserUtils.getParserFor(
+                        "<connect id='conn' protocol='mediajson' type='recorder '></connect>"
+                    )
+                )
+            }
+        }
+        context("Parsing with invalid url") {
+            shouldThrow<SmackParsingException> {
+                provider.parse(
+                    PacketParserUtils.getParserFor(
+                        "<connect id='conn' url='in val id' protocol='mediajson' type='recorder'/>"
+                    )
+                )
+            }
+        }
+        context("Parsing with missing protocol") {
+            shouldThrow<SmackParsingException> {
+                provider.parse(PacketParserUtils.getParserFor("<connect id='conn' url='$url' type='recorder'/>"))
+            }
+        }
+        context("Parsing with invalid protocol") {
+            shouldThrow<SmackParsingException> {
+                provider.parse(
+                    PacketParserUtils.getParserFor("<connect id='conn' url='$url' protocol='abc' type='recorder'/>")
+                )
+            }
+        }
+        context("Parsing with missing type") {
+            shouldThrow<SmackParsingException> {
+                provider.parse(PacketParserUtils.getParserFor("<connect id='conn' url='$url' protocol='mediajson'/>"))
+            }
+        }
+        context("Parsing with invalid type") {
+            shouldThrow<SmackParsingException> {
+                provider.parse(
+                    PacketParserUtils.getParserFor("<connect id='conn' url='$url' protocol='mediajson' type='inv'/>")
+                )
+            }
+        }
+
+        context("Parsing with HTTP headers") {
+            context("Single HTTP header") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                            <http-header name='Authorization' value='Bearer token123'/>
+                        </connect>"""
+                    )
+                )
+                connect.getHttpHeaders().size shouldBe 1
+                val header = connect.getHttpHeaders().first()
+                header.name shouldBe "Authorization"
+                header.value shouldBe "Bearer token123"
+            }
+
+            context("Multiple HTTP headers") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                            <http-header name='Authorization' value='Bearer token123'/>
+                            <http-header name='Content-Type' value='application/json'/>
+                            <http-header name='User-Agent' value='blabla'/>
+                        </connect>"""
+                    )
+                )
+                connect.getHttpHeaders().size shouldBe 3
+
+                val headers = connect.getHttpHeaders().associateBy { it.name }
+                headers["Authorization"]?.value shouldBe "Bearer token123"
+                headers["Content-Type"]?.value shouldBe "application/json"
+                headers["User-Agent"]?.value shouldBe "blabla"
+            }
+
+            context("No HTTP headers") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        "<connect id='conn' url='$url' protocol='mediajson' type='recorder'/>"
+                    )
+                )
+                connect.getHttpHeaders().size shouldBe 0
+            }
+
+            context("Invalid HTTP headers") {
+                context("Missing name attribute") {
+                    shouldThrow<SmackParsingException> {
+                        provider.parse(
+                            PacketParserUtils.getParserFor(
+                                """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                                    <http-header value='Bearer token123'/>
+                                </connect>"""
+                            )
+                        )
+                    }
+                }
+
+                context("Missing value attribute") {
+                    shouldThrow<SmackParsingException> {
+                        provider.parse(
+                            PacketParserUtils.getParserFor(
+                                """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                                    <http-header name='Authorization'/>
+                                </connect>"""
+                            )
+                        )
+                    }
+                }
+
+                context("Both attributes missing") {
+                    shouldThrow<SmackParsingException> {
+                        provider.parse(
+                            PacketParserUtils.getParserFor(
+                                """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                                    <http-header/>
+                                </connect>"""
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        context("HTTP header manipulation") {
+            context("Adding headers") {
+                val connect = Connect("conn", URI(url), Connect.Protocols.MEDIAJSON, Connect.Types.RECORDER)
+
+                connect.addHttpHeader("Authorization", "Bearer token123")
+                connect.addHttpHeader("Content-Type", "application/json")
+
+                connect.getHttpHeaders().size shouldBe 2
+                val headers = connect.getHttpHeaders().associateBy { it.name }
+                headers["Authorization"]?.value shouldBe "Bearer token123"
+                headers["Content-Type"]?.value shouldBe "application/json"
+            }
+
+            context("Adding header object") {
+                val connect = Connect("conn", URI(url), Connect.Protocols.MEDIAJSON, Connect.Types.RECORDER)
+                val header = Connect.HttpHeader("Custom-Header", "custom-value")
+
+                connect.addHttpHeader(header)
+
+                connect.getHttpHeaders().size shouldBe 1
+                connect.getHttpHeaders().first().name shouldBe "Custom-Header"
+                connect.getHttpHeaders().first().value shouldBe "custom-value"
+            }
+
+            context("Removing headers") {
+                val connect = Connect("conn", URI(url), Connect.Protocols.MEDIAJSON, Connect.Types.RECORDER)
+
+                connect.addHttpHeader("Authorization", "Bearer token123")
+                connect.addHttpHeader("Content-Type", "application/json")
+                connect.addHttpHeader("Authorization", "Bearer newtoken") // Add another Authorization header
+
+                connect.getHttpHeaders().size shouldBe 3
+
+                connect.removeHttpHeader("Authorization")
+
+                connect.getHttpHeaders().size shouldBe 1
+                connect.getHttpHeaders().first().name shouldBe "Content-Type"
+                connect.getHttpHeaders().first().value shouldBe "application/json"
+            }
+        }
+
+        context("Parsing with Ping") {
+            context("With ping element") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                            <ping interval='1234' timeout='5678'/>
+                        </connect>"""
+                    )
+                )
+                val ping = connect.getPing()!!
+                ping.interval shouldBe 1234
+                ping.timeout shouldBe 5678
+            }
+
+            context("Without ping element") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        "<connect id='conn' url='$url' protocol='mediajson' type='recorder'/>"
+                    )
+                )
+                connect.getPing() shouldBe null
+            }
+
+            context("With ping and HTTP headers") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                            <http-header name='Authorization' value='Bearer token123'/>
+                            <ping interval='1000' timeout='2000'/>
+                        </connect>"""
+                    )
+                )
+                connect.getHttpHeaders().size shouldBe 1
+                connect.getHttpHeaders().first().name shouldBe "Authorization"
+
+                val ping = connect.getPing()!!
+                ping.interval shouldBe 1000
+                ping.timeout shouldBe 2000
+            }
+
+            context("Invalid ping elements") {
+                context("Missing interval attribute") {
+                    shouldThrow<SmackParsingException> {
+                        provider.parse(
+                            PacketParserUtils.getParserFor(
+                                """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                                    <ping timeout='5678'/>
+                                </connect>"""
+                            )
+                        )
+                    }
+                }
+
+                context("Missing timeout attribute") {
+                    shouldThrow<SmackParsingException> {
+                        provider.parse(
+                            PacketParserUtils.getParserFor(
+                                """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                                    <ping interval='1234'/>
+                                </connect>"""
+                            )
+                        )
+                    }
+                }
+
+                context("Both attributes missing") {
+                    shouldThrow<SmackParsingException> {
+                        provider.parse(
+                            PacketParserUtils.getParserFor(
+                                """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                                    <ping/>
+                                </connect>"""
+                            )
+                        )
+                    }
+                }
+
+                context("Invalid interval value") {
+                    shouldThrow<SmackParsingException> {
+                        provider.parse(
+                            PacketParserUtils.getParserFor(
+                                """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                                    <ping interval='not-a-number' timeout='5678'/>
+                                </connect>"""
+                            )
+                        )
+                    }
+                }
+
+                context("Invalid timeout value") {
+                    shouldThrow<SmackParsingException> {
+                        provider.parse(
+                            PacketParserUtils.getParserFor(
+                                """<connect id='conn' url='$url' protocol='mediajson' type='recorder'>
+                                    <ping interval='1234' timeout='not-a-number'/>
+                                </connect>"""
+                            )
+                        )
+                    }
+                }
+            }
+        }
+
+        context("Ping manipulation") {
+            context("Setting ping") {
+                val connect = Connect("conn", URI(url), Connect.Protocols.MEDIAJSON, Connect.Types.RECORDER)
+
+                connect.setPing(1234, 5678)
+
+                val ping = connect.getPing()!!
+                ping.interval shouldBe 1234
+                ping.timeout shouldBe 5678
+            }
+
+            context("Setting ping object") {
+                val connect = Connect("conn", URI(url), Connect.Protocols.MEDIAJSON, Connect.Types.RECORDER)
+                val pingObj = Connect.Ping(3000, 4000)
+
+                connect.setPing(pingObj)
+
+                val ping = connect.getPing()!!
+                ping.interval shouldBe 3000
+                ping.timeout shouldBe 4000
+            }
+
+            context("Replacing ping") {
+                val connect = Connect("conn", URI(url), Connect.Protocols.MEDIAJSON, Connect.Types.RECORDER)
+
+                connect.setPing(1000, 2000)
+                connect.setPing(3000, 4000)
+
+                val ping = connect.getPing()!!
+                ping.interval shouldBe 3000
+                ping.timeout shouldBe 4000
+            }
+
+            context("Removing ping") {
+                val connect = Connect("conn", URI(url), Connect.Protocols.MEDIAJSON, Connect.Types.RECORDER)
+
+                connect.setPing(1234, 5678)
+                connect.getPing()!!
+
+                connect.removePing()
+                connect.getPing() shouldBe null
+            }
+        }
+
+        context("Parsing exports and requests") {
+            context("With exports and requests") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        """<connect id='conn' url='$url' protocol='mediajson' type='translator'>
+                            <exports>
+                                <export name='523834112-a0'/>
+                                <export name='2394a3432-a0'/>
+                            </exports>
+                            <requests>
+                                <request name='523834112-a0.en'/>
+                                <request name='2394a3432-a0.hi'/>
+                            </requests>
+                        </connect>"""
+                    )
+                )
+                connect.type shouldBe Connect.Types.TRANSLATOR
+                connect.getExports() shouldBe listOf("523834112-a0", "2394a3432-a0")
+                connect.getRequests() shouldBe listOf("523834112-a0.en", "2394a3432-a0.hi")
+            }
+
+            context("With empty containers") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        """<connect id='conn' url='$url' protocol='mediajson' type='translator'>
+                            <exports/>
+                            <requests/>
+                        </connect>"""
+                    )
+                )
+                connect.getExports() shouldBe emptyList()
+                connect.getRequests() shouldBe emptyList()
+            }
+
+            context("Without exports or requests") {
+                val connect = provider.parse(
+                    PacketParserUtils.getParserFor(
+                        "<connect id='conn' url='$url' protocol='mediajson' type='translator'/>"
+                    )
+                )
+                connect.getExports() shouldBe emptyList()
+                connect.getRequests() shouldBe emptyList()
+            }
+
+            context("Export missing name attribute") {
+                shouldThrow<SmackParsingException> {
+                    provider.parse(
+                        PacketParserUtils.getParserFor(
+                            """<connect id='conn' url='$url' protocol='mediajson' type='translator'>
+                                <exports><export/></exports>
+                            </connect>"""
+                        )
+                    )
+                }
+            }
+
+            context("Request missing name attribute") {
+                shouldThrow<SmackParsingException> {
+                    provider.parse(
+                        PacketParserUtils.getParserFor(
+                            """<connect id='conn' url='$url' protocol='mediajson' type='translator'>
+                                <requests><request/></requests>
+                            </connect>"""
+                        )
+                    )
+                }
+            }
+        }
+
+        context("Exports and requests manipulation") {
+            context("Setting exports and requests") {
+                val connect = Connect("conn", URI(url), Connect.Protocols.MEDIAJSON, Connect.Types.TRANSLATOR)
+
+                connect.setExports(listOf("523834112-a0", "2394a3432-a0"))
+                connect.setRequests(listOf("523834112-a0.en"))
+
+                connect.getExports() shouldBe listOf("523834112-a0", "2394a3432-a0")
+                connect.getRequests() shouldBe listOf("523834112-a0.en")
+            }
+
+            context("Adding exports and requests") {
+                val connect = Connect("conn", URI(url), Connect.Protocols.MEDIAJSON, Connect.Types.TRANSLATOR)
+
+                connect.addExport("523834112-a0")
+                connect.addExport("2394a3432-a0")
+                connect.addRequest("523834112-a0.en")
+
+                connect.getExports() shouldBe listOf("523834112-a0", "2394a3432-a0")
+                connect.getRequests() shouldBe listOf("523834112-a0.en")
+            }
+
+            context("Replacing exports") {
+                val connect = Connect("conn", URI(url), Connect.Protocols.MEDIAJSON, Connect.Types.TRANSLATOR)
+
+                connect.setExports(listOf("523834112-a0"))
+                connect.setExports(listOf("2394a3432-a0"))
+
+                connect.getExports() shouldBe listOf("2394a3432-a0")
+            }
+
+            context("Round-trip through XML") {
+                val connect = Connect("conn", URI(url), Connect.Protocols.MEDIAJSON, Connect.Types.TRANSLATOR)
+                connect.setExports(listOf("523834112-a0", "2394a3432-a0"))
+                connect.setRequests(listOf("523834112-a0.en", "2394a3432-a0.hi"))
+
+                val parsed = provider.parse(PacketParserUtils.getParserFor(connect.toXML().toString()))
+                parsed.id shouldBe "conn"
+                parsed.getExports() shouldBe listOf("523834112-a0", "2394a3432-a0")
+                parsed.getRequests() shouldBe listOf("523834112-a0.en", "2394a3432-a0.hi")
+            }
+        }
+
+        context("id/create/expire round-trip through XML") {
+            context("create") {
+                val connect = Connect(
+                    id = "c-create",
+                    url = URI(url),
+                    protocol = Connect.Protocols.MEDIAJSON,
+                    type = Connect.Types.TRANSLATOR,
+                    create = true
+                )
+                val parsed = provider.parse(PacketParserUtils.getParserFor(connect.toXML().toString()))
+                parsed.id shouldBe "c-create"
+                parsed.create shouldBe true
+                parsed.expire shouldBe false
+            }
+            context("expire") {
+                val connect = Connect(
+                    id = "c-expire",
+                    url = URI(url),
+                    protocol = Connect.Protocols.MEDIAJSON,
+                    type = Connect.Types.TRANSLATOR,
+                    expire = true
+                )
+                val parsed = provider.parse(PacketParserUtils.getParserFor(connect.toXML().toString()))
+                parsed.id shouldBe "c-expire"
+                parsed.create shouldBe false
+                parsed.expire shouldBe true
+            }
+        }
+    }
+}

@@ -16,6 +16,7 @@
 package org.jitsi.xmpp.extensions.colibri;
 
 import org.jivesoftware.smack.packet.*;
+import org.jitsi.xmpp.util.*;
 
 /**
  * The stats IQ that can be used to request Colibri stats on demand

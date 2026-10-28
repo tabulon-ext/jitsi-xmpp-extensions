@@ -36,6 +36,28 @@ public class Capability extends AbstractPacketExtension
     public static final String CAP_SOURCE_NAME_SUPPORT = "source-names";
 
     /**
+     * A constant for SSRC rewriting support
+     */
+    public static final String CAP_SSRC_REWRITING_SUPPORT = "ssrc-rewriting";
+
+    /**
+     * The endpoint supports ICE connections via private addresses.
+     */
+    public static final String CAP_PRIVATE_ADDRESS_CONNECTIVITY = "private-address-connectivity";
+
+    /**
+     * The endpoint can demux forwarded media by the RTP sdes:mid header extension, allowing the bridge to stamp a mid
+     * on rewritten packets. Only meaningful together with {@link #CAP_SSRC_REWRITING_SUPPORT}.
+     */
+    public static final String CAP_RTP_MID_DEMUX_SUPPORT = "rtp-mid-demux";
+
+    /**
+     * The endpoint is synthetic: a bridge-side entity (e.g. a voice agent) that owns injected sources and has no media
+     * transport. It is created without a {@code <transport>} and never sends or receives media itself.
+     */
+    public static final String CAP_SYNTHETIC_ENDPOINT = "synthetic-endpoint";
+
+    /**
      * Creates an {@link Capability} instance.
      */
     public Capability()

@@ -17,6 +17,7 @@ package org.jitsi.xmpp.extensions.colibri;
 
 import java.util.*;
 
+import org.jetbrains.annotations.*;
 import org.jitsi.utils.logging2.*;
 import org.jitsi.xmpp.extensions.*;
 import org.jitsi.xmpp.extensions.jingle.*;
@@ -65,12 +66,7 @@ public class SourcePacketExtension
      */
     public static final String NAME_ATTR_NAME = "name";
 
-    /**
-     * A temporary flag used by jicofo to keep track of which sources have been advertised by clients or injected by
-     * jicofo. This is only necessary until we update Colibri to not require SSRCs for Octo endpoints, and should be
-     * removed afterwards.
-     */
-    private boolean injected = false;
+    public static final String VIDEO_TYPE_ATTR_NAME = "videoType";
 
     /** Initializes a new <tt>SourcePacketExtension</tt> instance. */
     public SourcePacketExtension()
@@ -126,6 +122,12 @@ public class SourcePacketExtension
         return getAttributeAsString(NAME_ATTR_NAME);
     }
 
+    @Nullable
+    public String getVideoType()
+    {
+        return getAttributeAsString(VIDEO_TYPE_ATTR_NAME);
+    }
+
     /**
      * Checks if this source has a name.
      *
@@ -149,6 +151,22 @@ public class SourcePacketExtension
         else
         {
             setAttribute(NAME_ATTR_NAME, name);
+        }
+    }
+
+    /**
+     * Sets the video type of this source.
+     * @param videoType the video type to be set or null to remove the attribute.
+     */
+    public void setVideoType(String videoType)
+    {
+        if (videoType == null)
+        {
+            removeAttribute(VIDEO_TYPE_ATTR_NAME);
+        }
+        else
+        {
+            setAttribute(VIDEO_TYPE_ATTR_NAME, videoType);
         }
     }
 
@@ -272,7 +290,6 @@ public class SourcePacketExtension
             }
         }
 
-        copy.setInjected(injected);
         return copy;
     }
 
@@ -294,15 +311,5 @@ public class SourcePacketExtension
         {
             return "[no identifier]";
         }
-    }
-
-    public boolean isInjected()
-    {
-        return injected;
-    }
-
-    public void setInjected(boolean injected)
-    {
-        this.injected = injected;
     }
 }

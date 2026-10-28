@@ -17,28 +17,26 @@ package org.jitsi.xmpp.extensions.jibri;
 
 import org.apache.commons.lang3.StringUtils;
 
+import org.jitsi.xmpp.extensions.*;
+import org.jitsi.xmpp.extensions.colibri2.IqProviderUtils;
 import org.jivesoftware.smack.packet.*;
-import org.jivesoftware.smack.parsing.*;
-import org.jivesoftware.smack.provider.*;
 import org.jivesoftware.smack.util.*;
 import org.jivesoftware.smack.xml.*;
 import org.jxmpp.jid.*;
 import org.jxmpp.jid.impl.*;
 
-import java.io.*;
-
 /**
  * Parses {@link JibriIq}.
  */
 public class JibriIqProvider
-    extends IqProvider<JibriIq>
+    extends SafeParseIqProvider<JibriIq>
 {
     /**
      * {@inheritDoc}
      */
     @Override
-    public JibriIq parse(XmlPullParser parser, int initialDepth, IqData data, XmlEnvironment xmlEnvironment)
-        throws XmlPullParserException, IOException, SmackParsingException
+    protected JibriIq doParse(XmlPullParser parser, int initialDepth, IqData data, XmlEnvironment xmlEnvironment)
+        throws Exception
     {
         String namespace = parser.getNamespace();
 
@@ -124,13 +122,26 @@ public class JibriIqProvider
                 = parser.getAttributeValue("", JibriIq.SIP_ADDRESS_ATTR_NAME);
             if (StringUtils.isNotEmpty(sipAddress))
                 iq.setSipAddress(sipAddress);
+
+            String rtcStatsEnabledStr
+                = parser.getAttributeValue("", JibriIq.RTCSTATS_ENABLED_ATTR_NAME);
+            if (StringUtils.isNotEmpty(rtcStatsEnabledStr))
+            {
+                iq.setRtcStatsEnabled(Boolean.valueOf(rtcStatsEnabledStr));
+            }
+
+            String supportsBadRequestStr
+                = parser.getAttributeValue("", JibriIq.SUPPORTS_BAD_REQUEST_ATTR_NAME);
+            if (StringUtils.isNotEmpty(supportsBadRequestStr))
+            {
+                iq.setSupportsBadRequest(Boolean.valueOf(supportsBadRequestStr));
+            }
         }
         else
         {
             return null;
         }
-
-        ParserUtils.forwardToEndTagOfDepth(parser, initialDepth);
+        IqProviderUtils.parseExtensions(parser, initialDepth, iq);
         return iq;
     }
 }

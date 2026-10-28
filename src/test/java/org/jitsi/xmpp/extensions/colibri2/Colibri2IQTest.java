@@ -16,6 +16,7 @@
 package org.jitsi.xmpp.extensions.colibri2;
 
 import org.jitsi.utils.*;
+import org.jitsi.utils.MediaType;
 import org.jitsi.xmpp.extensions.colibri.*;
 import org.jitsi.xmpp.extensions.jingle.*;
 import org.jivesoftware.smack.packet.*;
@@ -40,9 +41,14 @@ public class Colibri2IQTest
     private static final int SSRC = 803354056;
     private static final String SOURCE_ID = ENDPOINT_ID + "-v1";
 
+    private static final String expireConferenceExpectedXml =
+        "<iq xmlns='jabber:client' id='id' type='get'>"
+                + "<conference-modify xmlns='jitsi:colibri2' meeting-id='88ff288c-5eeb-4ea9-bc2f-93ea38c43b78' expire='true'/>"
+                + "</iq>";
+
     private static final String expectedXml =
         "<iq xmlns='jabber:client' id='id' type='get'>"
-            + "<conference-modify xmlns='jitsi:colibri2' meeting-id='88ff288c-5eeb-4ea9-bc2f-93ea38c43b78' name='myconference@jitsi.example' callstats-enabled='false' create='true'>"
+            + "<conference-modify xmlns='jitsi:colibri2' meeting-id='88ff288c-5eeb-4ea9-bc2f-93ea38c43b78' name='myconference@jitsi.example' create='true'>"
             /* I thought Smack 4.4.4 would remove the redundant xmlns from this line, but it didn't.  TODO. */
             + "<endpoint xmlns='jitsi:colibri2' id='bd9b6765' stats-id='Jayme-Clv'>"
             + "<media type='audio'>"
@@ -59,6 +65,7 @@ public class Colibri2IQTest
             + "<force-mute audio='true' video='true'/>"
             + "<capability name='cap1'/>"
             + "<capability name='cap2'/>"
+            + "<initial-last-n value='13'/>"
             + "</endpoint>"
             + "</conference-modify>"
             + "</iq>";
@@ -70,13 +77,29 @@ public class Colibri2IQTest
     }
 
     @Test
+    public void buildExpireConferenceTest()
+    {
+        ConferenceModifyIQ.Builder iqBuilder = ConferenceModifyIQ.builder("id");
+        iqBuilder.setMeetingId(MEETING_ID);
+        iqBuilder.setExpire(true);
+
+        ConferenceModifyIQ iq = iqBuilder.build();
+        assertEquals(MEETING_ID, iq.getMeetingId(), "Meeting ID");
+
+        Diff diff = DiffBuilder.compare(expireConferenceExpectedXml).
+                withTest(iq.toXML().toString()).
+                checkForIdentical().build();
+
+        assertFalse(diff.hasDifferences(), diff.toString());
+    }
+
+    @Test
     public void buildColibriConferenceModifyTest()
     {
         ConferenceModifyIQ.Builder iqBuilder = ConferenceModifyIQ.builder("id");
 
         iqBuilder.setConferenceName(CONFERENCE_NAME);
         iqBuilder.setMeetingId(MEETING_ID);
-        iqBuilder.setCallstatsEnabled(false);
         iqBuilder.setCreate(true);
 
         Colibri2Endpoint.Builder endpointBuilder = Colibri2Endpoint.getBuilder();
@@ -109,6 +132,7 @@ public class Colibri2IQTest
         endpointBuilder.setTransport(transportBuilder.build());
         endpointBuilder.setSources(sourcesBuilder.build());
         endpointBuilder.setForceMute(true, true);
+        endpointBuilder.setInitialLastN(13);
         endpointBuilder.addCapability("cap1");
         endpointBuilder.addCapability("cap2");
 
@@ -140,11 +164,29 @@ public class Colibri2IQTest
         assertTrue(endpoint.getForceMute().getAudio(), "force-mute audio must be true");
         assertTrue(endpoint.getForceMute().getVideo(), "force-mute video must be true");
 
+        assertNotNull(endpoint.getInitialLastN());
+        assertEquals(endpoint.getInitialLastN().getValue(), 13);
+
         Diff diff = DiffBuilder.compare(expectedXml).
             withTest(iq.toXML().toString()).
             checkForIdentical().build();
 
         assertFalse(diff.hasDifferences(), diff.toString());
+    }
+
+    @Test
+    public void parseExpireConferenceTest()
+        throws Exception
+    {
+        XmlPullParser parser = PacketParserUtils.getParserFor(expireConferenceExpectedXml);
+        IQ parsedIq = PacketParserUtils.parseIQ(parser);
+
+        assertInstanceOf(ConferenceModifyIQ.class, parsedIq);
+
+        ConferenceModifyIQ iq = (ConferenceModifyIQ)parsedIq;
+
+        assertEquals(MEETING_ID, iq.getMeetingId(), "Meeting ID");
+        assertTrue(iq.getExpire(), "Expire flag");
     }
 
     @Test
@@ -160,7 +202,6 @@ public class Colibri2IQTest
 
         assertEquals(CONFERENCE_NAME, iq.getConferenceName(), "Conference name");
         assertEquals(MEETING_ID, iq.getMeetingId(), "Meeting ID");
-        assertFalse(iq.isCallstatsEnabled(), "Callstats enabled");
         assertTrue(iq.getCreate(), "Create flag");
 
         Colibri2Endpoint endpoint = iq.getEndpoints().get(0);
@@ -183,5 +224,8 @@ public class Colibri2IQTest
         assertNotNull(endpoint.getForceMute(), "force-mute must not be null");
         assertTrue(endpoint.getForceMute().getAudio(), "force-mute audio must be true");
         assertTrue(endpoint.getForceMute().getVideo(), "force-mute video must be true");
+
+        assertNotNull(endpoint.getInitialLastN());
+        assertEquals(endpoint.getInitialLastN().getValue(), 13);
     }
 }

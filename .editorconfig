@@ -1,0 +1,15 @@
+[*.{kt,kts}]    
+# Keep constructor parameters wrapped one per line, and kotest specs unindented.
+ktlint_standard_class-signature = disabled
+max_line_length = 120
+
+ktlint_code_style = intellij_idea
+
+# I find trailing commas annoying
+ktlint_standard_trailing-comma-on-call-site = disabled
+ktlint_standard_trailing-comma-on-declaration-site = disabled
+
+[pom.xml]
+indent_style = space
+indent_size = 4
+max_line_length = 120

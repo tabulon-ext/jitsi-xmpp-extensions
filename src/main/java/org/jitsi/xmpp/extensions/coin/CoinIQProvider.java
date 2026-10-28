@@ -17,7 +17,7 @@ package org.jitsi.xmpp.extensions.coin;
 
 import org.jitsi.xmpp.extensions.*;
 
-import org.jivesoftware.smack.packet.*;
+import org.jitsi.xmpp.extensions.colibri2.*;
 import org.jivesoftware.smack.parsing.*;
 import org.jivesoftware.smack.provider.*;
 import org.jivesoftware.smack.xml.*;
@@ -30,7 +30,7 @@ import java.io.*;
  * @author Sebastien Vincent
  */
 public class CoinIQProvider
-    extends IqProvider<CoinIQ>
+    extends SafeParseIqProvider<CoinIQ>
 {
     /**
      * Provider for description packet extension.
@@ -110,10 +110,12 @@ public class CoinIQProvider
      *
      * @param parser XML parser
      * @return <tt>CoinIQ</tt>
-     * @throws Exception if something goes wrong during parsing
+     * @throws XmlPullParserException if something goes wrong during parsing
+     * @throws IOException if something goes wrong during parsing
+     * @throws SmackParsingException if something goes wrong during parsing
      */
     @Override
-    public CoinIQ parse(XmlPullParser parser, int initialDepth, IqData data, XmlEnvironment xmlEnvironment)
+    protected CoinIQ doParse(XmlPullParser parser)
         throws XmlPullParserException, IOException, SmackParsingException
     {
         CoinIQ coinIQ = new CoinIQ();
@@ -188,41 +190,5 @@ public class CoinIQProvider
         }
 
         return coinIQ;
-    }
-
-    /**
-     * Returns the content of the next {@link XmlPullParser.Event#TEXT_CHARACTERS} element that
-     * we encounter in <tt>parser</tt>.
-     *
-     * @param parser the parse that we'll be probing for text.
-     *
-     * @return the content of the next {@link XmlPullParser.Event#TEXT_CHARACTERS} element we
-     * come across or <tt>null</tt> if we encounter a closing tag first.
-     *
-     * @throws java.lang.Exception if an error occurs parsing the XML.
-     */
-    public static String parseText(XmlPullParser parser)
-        throws XmlPullParserException, IOException, SmackParsingException
-    {
-        boolean done = false;
-
-        XmlPullParser.Event eventType;
-        String text = null;
-
-        while (!done)
-        {
-            eventType = parser.next();
-
-            if (eventType == XmlPullParser.Event.TEXT_CHARACTERS)
-            {
-                text = parser.getText();
-            }
-            else if (eventType == XmlPullParser.Event.END_ELEMENT)
-            {
-                done = true;
-            }
-        }
-
-        return text;
     }
 }

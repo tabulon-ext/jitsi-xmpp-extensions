@@ -26,6 +26,7 @@ import org.jivesoftware.smack.provider.*;
 import org.jivesoftware.smack.xml.*;
 
 import java.io.*;
+import java.util.*;
 
 /**
  * Utility class for parsing Colibri2 IQs.
@@ -34,9 +35,19 @@ public class IqProviderUtils
 {
     private static final Logger logger = new LoggerImpl(IqProviderUtils.class.getName());
 
-    static void parseExtensions(XmlPullParser parser, int initialDepth, IQ iq)
+    public static void parseExtensions(XmlPullParser parser, int initialDepth, IQ iq)
             throws XmlPullParserException, IOException, SmackParsingException
     {
+        for (ExtensionElement ext : parseExtensions(parser, initialDepth))
+        {
+            iq.addExtension(ext);
+        }
+    }
+
+    public static List<ExtensionElement> parseExtensions(XmlPullParser parser, int initialDepth)
+            throws XmlPullParserException, IOException, SmackParsingException
+    {
+        List<ExtensionElement> ret = new ArrayList<>();
         while (true)
         {
             XmlPullParser.Event eventType = parser.next();
@@ -50,14 +61,14 @@ public class IqProviderUtils
 
                 if (extension != null)
                 {
-                    iq.addExtension(extension);
+                    ret.add(extension);
                 }
                 break;
 
             case END_ELEMENT:
                 if (parser.getDepth() == initialDepth)
                 {
-                    return;
+                    return ret;
                 }
                 break;
             default:
@@ -115,7 +126,22 @@ public class IqProviderUtils
         }
     }
 
+    /** Whether the colibri2 extension and IQ providers have been registered with Smack's ProviderManager. */
+    private static boolean providersRegistered = false;
+
     public static void registerProviders()
+    {
+        synchronized (IqProviderUtils.class)
+        {
+            if (!providersRegistered)
+            {
+                doRegisterProviders();
+                providersRegistered = true;
+            }
+        }
+    }
+
+    private static void doRegisterProviders()
     {
         ProviderManager.addIQProvider(ConferenceModifyIQ.ELEMENT, ConferenceModifyIQ.NAMESPACE,
             new ConferenceModifyIQProvider());
@@ -140,26 +166,26 @@ public class IqProviderUtils
         ProviderManager.addExtensionProvider(Transport.ELEMENT, Transport.NAMESPACE,
             new DefaultPacketExtensionProvider<>(Transport.class));
 
-        /* Colibri2 shares extensions with original colibri, so register both. */
-        ProviderManager.addIQProvider(ColibriConferenceIQ.ELEMENT, ColibriConferenceIQ.NAMESPACE,
-            new ColibriConferenceIqProvider());
-        /* Similarly for Jingle. */
-        ProviderManager.addIQProvider(JingleIQ.ELEMENT, JingleIQ.NAMESPACE,
-            new JingleIQProvider()
-        );
+        ProviderManager.addExtensionProvider(ParameterPacketExtension.ELEMENT, ColibriConferenceIQ.NAMESPACE,
+            new DefaultPacketExtensionProvider<>(ParameterPacketExtension.class));
+
+        // Colibri2 shares extensions with jingle. Instantiating JingleIQProvider registers the extensions, but not
+        // Jingle provider itself.
+        new JingleIQProvider();
 
         /* Original colibri does something weird with these elements' namespaces, so register them here. */
-        ProviderManager.addExtensionProvider(PayloadTypePacketExtension.ELEMENT,
-            PayloadTypePacketExtension.NAMESPACE,
-            new DefaultPacketExtensionProvider<>(PayloadTypePacketExtension.class));
-        ProviderManager.addExtensionProvider(ParameterPacketExtension.ELEMENT,
-            ParameterPacketExtension.NAMESPACE,
-            new DefaultPacketExtensionProvider<>(ParameterPacketExtension.class));
-        ProviderManager.addExtensionProvider(RTPHdrExtPacketExtension.ELEMENT,
-            RTPHdrExtPacketExtension.NAMESPACE,
-            new DefaultPacketExtensionProvider<>(RTPHdrExtPacketExtension.class));
         ProviderManager.addExtensionProvider(ForceMute.ELEMENT, ForceMute.NAMESPACE, new ForceMute.Provider());
+        ProviderManager.addExtensionProvider(InitialLastN.ELEMENT, InitialLastN.NAMESPACE, new InitialLastNProvider());
+        ProviderManager.addExtensionProvider(Connect.ELEMENT, Connect.NAMESPACE, new ConnectProvider());
+        ProviderManager.addExtensionProvider(Connects.ELEMENT, Connects.NAMESPACE, new ConnectsProvider());
         ProviderManager.addExtensionProvider(Capability.ELEMENT, Capability.NAMESPACE, new Capability.Provider());
         ProviderManager.addExtensionProvider(Sctp.ELEMENT, Sctp.NAMESPACE, new Sctp.Provider());
+        ProviderManager.addExtensionProvider(Colibri2Error.ELEMENT,
+                Colibri2Error.NAMESPACE,
+                new Colibri2Error.Provider());
+
+        ProviderManager.addExtensionProvider(TraceParent.ELEMENT,
+                 TraceParent.NAMESPACE,
+                 new TraceParentProvider());
     }
 }

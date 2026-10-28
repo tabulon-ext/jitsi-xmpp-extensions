@@ -18,24 +18,22 @@ package org.jitsi.xmpp.extensions.jingle;
 import org.jitsi.xmpp.extensions.*;
 
 import org.jitsi.xmpp.extensions.colibri.*;
+import org.jitsi.xmpp.extensions.colibri2.*;
 import org.jitsi.xmpp.extensions.condesc.*;
 import org.jitsi.xmpp.extensions.jitsimeet.*;
 import org.jivesoftware.smack.packet.*;
-import org.jivesoftware.smack.parsing.*;
 import org.jivesoftware.smack.provider.*;
 import org.jivesoftware.smack.util.*;
 import org.jivesoftware.smack.xml.*;
 import org.jxmpp.jid.*;
 import org.jxmpp.jid.impl.*;
 
-import java.io.*;
-
 /**
  * An implementation of a Jingle IQ provider that parses incoming Jingle IQs.
  *
  * @author Emil Ivov
  */
-public class JingleIQProvider extends IqProvider<JingleIQ>
+public class JingleIQProvider extends SafeParseIqProvider<JingleIQ>
 {
     /**
      * Creates a new instance of the <tt>JingleIQProvider</tt> and register all
@@ -71,6 +69,13 @@ public class JingleIQProvider extends IqProvider<JingleIQ>
                 RTPHdrExtPacketExtension.NAMESPACE,
                 new DefaultPacketExtensionProvider
                     <>(RTPHdrExtPacketExtension.class));
+
+        //<extmap-allow-mixed> provider
+        ProviderManager.addExtensionProvider(
+                ExtmapAllowMixedPacketExtension.ELEMENT,
+                ExtmapAllowMixedPacketExtension.NAMESPACE,
+                new DefaultPacketExtensionProvider
+                    <>(ExtmapAllowMixedPacketExtension.class));
 
         // <sctpmap/> provider
         ProviderManager.addExtensionProvider(
@@ -219,6 +224,26 @@ public class JingleIQProvider extends IqProvider<JingleIQ>
                 SSRCInfoPacketExtension.NAMESPACE,
                 new DefaultPacketExtensionProvider
                     <>(SSRCInfoPacketExtension.class));
+
+        ProviderManager.addExtensionProvider(
+                SourcePacketExtension.ELEMENT,
+                SourcePacketExtension.NAMESPACE,
+                new DefaultPacketExtensionProvider<>(SourcePacketExtension.class));
+
+        ProviderManager.addExtensionProvider(
+                SourceGroupPacketExtension.ELEMENT,
+                SourceGroupPacketExtension.NAMESPACE,
+                new DefaultPacketExtensionProvider<>(SourceGroupPacketExtension.class));
+
+        ProviderManager.addExtensionProvider(
+                SourceRidGroupPacketExtension.ELEMENT,
+                SourceRidGroupPacketExtension.NAMESPACE,
+                new DefaultPacketExtensionProvider<>(SourceRidGroupPacketExtension.class));
+
+        ProviderManager.addExtensionProvider(
+                ParameterPacketExtension.ELEMENT,
+                SourcePacketExtension.NAMESPACE,
+                new DefaultPacketExtensionProvider<>(ParameterPacketExtension.class));
     }
 
     /**
@@ -231,8 +256,8 @@ public class JingleIQProvider extends IqProvider<JingleIQ>
      * @throws Exception if an error occurs parsing the XML.
      */
     @Override
-    public JingleIQ parse(XmlPullParser parser, int initialDepth, IqData iqData, XmlEnvironment xmlEnvironment)
-        throws XmlPullParserException, IOException, SmackParsingException
+    protected JingleIQ doParse(XmlPullParser parser, int initialDepth, IqData iqData, XmlEnvironment xmlEnvironment)
+        throws Exception
     {
         //let's first handle the "jingle" element params.
         JingleAction action = JingleAction.parseString(parser
